@@ -3,13 +3,11 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-#  banco de dados em memória
+#  banco em memória
 dados = []
 
-# -------------------------
-# RECEBER DADOS DO ESP32
-# -------------------------
-@app.route("/api/dados", methods=["POST"])
+#  RECEBER DADOS
+@app.route("/api/teste", methods=["POST"])
 def receber_dados():
     data = request.json
 
@@ -22,7 +20,7 @@ def receber_dados():
 
     dados.append(registro)
 
-    # manter só últimos 50 pontos
+    # limitar histórico
     if len(dados) > 50:
         dados.pop(0)
 
@@ -31,47 +29,40 @@ def receber_dados():
     return jsonify({"status": "ok"}), 200
 
 
-# -------------------------
-# RETORNAR DADOS (API)
-# -------------------------
+#  RETORNAR DADOS
 @app.route("/dados")
 def obter_dados():
     return jsonify(dados)
 
 
-# -------------------------
-# GRÁFICO EM TEMPO REAL
-# -------------------------
+#  GRÁFICO EM TEMPO REAL
 @app.route("/grafico")
 def grafico():
     return """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Temperatura em Tempo Real</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>Temperatura ESP32</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-<h2>🌡 Temperatura ESP32 (Tempo Real)</h2>
-
+<h2>🌡 Temperatura em Tempo Real</h2>
 <canvas id="grafico"></canvas>
 
 <script>
+
 let chart;
 
-async function carregarDados() {
+async function atualizar() {
+
     const resp = await fetch('/dados');
-    const dados = await resp.json();
+    const data = await resp.json();
 
-    const labels = dados.map(d => d.tempo);
-    const valores = dados.map(d => d.temperatura);
+    const labels = data.map(d => d.tempo);
+    const valores = data.map(d => d.temperatura);
 
-    if (chart) {
-        chart.data.labels = labels;
-        chart.data.datasets[0].data = valores;
-        chart.update();
-    } else {
+    if (!chart) {
         chart = new Chart(document.getElementById("grafico"), {
             type: 'line',
             data: {
@@ -79,19 +70,21 @@ async function carregarDados() {
                 datasets: [{
                     label: 'Temperatura (°C)',
                     data: valores,
-                    borderWidth: 2,
-                    borderColor: 'red'
+                    borderColor: 'red',
+                    borderWidth: 2
                 }]
             }
         });
+    } else {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = valores;
+        chart.update();
     }
 }
 
-//  atualiza a cada 5 segundos
-setInterval(carregarDados, 5000);
+setInterval(atualizar, 5000);
+atualizar();
 
-// carrega na inicialização
-carregarDados();
 </script>
 
 </body>
@@ -99,9 +92,7 @@ carregarDados();
 """
 
 
-# -------------------------
-# HOME
-# -------------------------
+#  HOME
 @app.route("/")
 def home():
     return "Servidor online "
