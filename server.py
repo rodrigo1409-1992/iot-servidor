@@ -18,3 +18,4 @@ def receber_dados():
 @app.route("/")
 def home():
     return "Servidor rodando "
+
