@@ -7,7 +7,7 @@ app = Flask(__name__)
 dados = []
 
 #  RECEBER DADOS
-@app.route("/api/teste", methods=["POST"])
+@app.route("/api/teste/", methods=["POST"])
 def receber_dados():
     data = request.json
 
