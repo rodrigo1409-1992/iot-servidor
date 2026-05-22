@@ -1,53 +1,79 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
+import sqlite3
 
 app = Flask(__name__)
 
-#  banco em memória
-dados = []
+#  CRIAR BANCO
+def init_db():
+    conn = sqlite3.connect("dados.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS temperatura (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            valor REAL
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-#  RECEBER DADOS
-@app.route("/api/teste/", methods=["POST"])
+init_db()
+
+# ==========================
+# RECEBER DADOS
+# ==========================
+@app.route("/api/teste", methods=["POST"])
 def receber_dados():
     data = request.json
 
-    agora = datetime.now().strftime("%H:%M:%S")
+    temp = data.get("temperatura")
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    registro = {
-        "tempo": agora,
-        "temperatura": data.get("temperatura")
-    }
+    conn = sqlite3.connect("dados.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO temperatura (timestamp, valor) VALUES (?, ?)",
+                   (agora, temp))
+    conn.commit()
+    conn.close()
 
-    dados.append(registro)
+    print(" ", temp)
 
-    # limitar histórico
-    if len(dados) > 50:
-        dados.pop(0)
-
-    print(" ", registro)
-
-    return jsonify({"status": "ok"}), 200
+    return jsonify({"status": "ok"})
 
 
-#  RETORNAR DADOS
+# ==========================
+# RETORNAR DADOS
+# ==========================
 @app.route("/dados")
-def obter_dados():
-    return jsonify(dados)
+def dados():
+    conn = sqlite3.connect("dados.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT timestamp, valor FROM temperatura ORDER BY id DESC LIMIT 50")
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    data = [{"tempo": r[0], "temperatura": r[1]} for r in reversed(rows)]
+    return jsonify(data)
 
 
-#  GRÁFICO EM TEMPO REAL
+# ==========================
+# DASHBOARD WEB
+# ==========================
 @app.route("/grafico")
 def grafico():
     return """
 <!DOCTYPE html>
 <html>
 <head>
-<title>Temperatura ESP32</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>Dashboard IoT</title>
+https://cdn.jsdelivr.net/npm/chart.jsscript>
 </head>
 <body>
 
-<h2>🌡 Temperatura em Tempo Real</h2>
+<h2>🌡 Monitoramento de Temperatura</h2>
 <canvas id="grafico"></canvas>
 
 <script>
@@ -55,7 +81,6 @@ def grafico():
 let chart;
 
 async function atualizar() {
-
     const resp = await fetch('/dados');
     const data = await resp.json();
 
@@ -70,7 +95,7 @@ async function atualizar() {
                 datasets: [{
                     label: 'Temperatura (°C)',
                     data: valores,
-                    borderColor: 'red',
+                    borderColor: 'blue',
                     borderWidth: 2
                 }]
             }
@@ -92,7 +117,6 @@ atualizar();
 """
 
 
-#  HOME
 @app.route("/")
 def home():
-    return "Servidor online "
+    return "Servidor IoT rodando ✅"
